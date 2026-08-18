@@ -24,6 +24,11 @@ model Aliquota {
   @@map("aliquotas")
 }
 
+enum ItemStatus {
+  CALCULADO
+  PENDENTE_ALIQUOTA
+}
+
 model NotaItem {
   id            String     @id @default(uuid())
   ncm           String
@@ -33,5 +38,21 @@ model NotaItem {
   credito       Decimal?   @db.Decimal(15, 2)
   status        ItemStatus
 
+  notaId String
+  nota   Nota   @relation(fields: [notaId], references: [id], onDelete: Cascade)
+
+  @@index([notaId])
   @@map("nota_itens")
+}
+
+model Nota {
+  id           String     @id @default(uuid())
+  numeroNota   String     @unique
+  uf           String
+  dataEmissao  DateTime
+  creditoTotal Decimal    @db.Decimal(15, 2)
+  payloadHash  String
+  itens        NotaItem[]
+
+  @@map("notas")
 }
