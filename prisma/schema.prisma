@@ -23,3 +23,15 @@ model Aliquota {
   @@index([uf, ncm])
   @@map("aliquotas")
 }
+
+model NotaItem {
+  id            String     @id @default(uuid())
+  ncm           String
+  quantidade    Decimal    @db.Decimal(15, 4)
+  valorUnitario Decimal    @db.Decimal(15, 2)
+  aliquota      Decimal?   @db.Decimal(5, 4)
+  credito       Decimal?   @db.Decimal(15, 2)
+  status        ItemStatus
+
+  @@map("nota_itens")
+}
