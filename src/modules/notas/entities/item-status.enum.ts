@@ -1,0 +1,4 @@
+export enum ItemStatus {
+  CALCULADO = 'CALCULADO',
+  PENDENTE_ALIQUOTA = 'PENDENTE_ALIQUOTA',
+}
