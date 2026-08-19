@@ -1,7 +1,4 @@
-export enum UserRole {
-  OPERADOR = 'operador',
-  AUDITOR = 'auditor',
-}
+import { UserRole } from '../enums/user-role.enum';
 
 export class User {
   constructor(
