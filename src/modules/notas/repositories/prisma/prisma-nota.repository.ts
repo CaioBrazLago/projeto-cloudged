@@ -58,8 +58,9 @@ export class PrismaNotaRepository extends NotaRepository {
         error.code === 'P2002'
       ) {
         throw new AppError(
-          ErrorCode.NOTA_ALREADY_EXISTS,
           'Já existe uma nota com este número',
+          409,
+          ErrorCode.NOTA_ALREADY_EXISTS,
         );
       }
 
