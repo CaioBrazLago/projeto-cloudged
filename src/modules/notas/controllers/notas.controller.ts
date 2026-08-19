@@ -1,4 +1,12 @@
-import { Body, Controller, HttpStatus, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 
 import { CreateNotaDto } from '../dto/request/create-nota.dto';
@@ -7,11 +15,20 @@ import { NotaResponseDto } from '../dto/response/nota-response.dto';
 import { NotaItem } from '../entities/nota-item.entity';
 import { Nota } from '../entities/nota.entity';
 import { ItemStatus } from '../enums/item-status.enum';
+import {
+  FindAllNotasResult,
+  FindAllNotasService,
+} from '../services/find-all-notas.service';
+import { FindNotaResult, FindNotaService } from '../services/find-nota.service';
 import { NotasService } from '../services/notas.service';
 
 @Controller('notas')
 export class NotasController {
-  constructor(private readonly notasService: NotasService) {}
+  constructor(
+    private readonly notasService: NotasService,
+    private readonly findAllNotasService: FindAllNotasService,
+    private readonly findNotaService: FindNotaService,
+  ) {}
 
   @Post()
   async create(
@@ -50,5 +67,19 @@ export class NotasController {
 
   private formatNcm(ncm: string): string {
     return `${ncm.slice(0, 4)}.${ncm.slice(4, 6)}.${ncm.slice(6, 8)}`;
+  }
+
+  @Get()
+  async findAll(): Promise<FindAllNotasResult[]> {
+    const notas = await this.findAllNotasService.execute();
+    return notas;
+  }
+
+  @Get(':numeroNota')
+  async findByNumeroNota(
+    @Param('numeroNota') numeroNota: string,
+  ): Promise<FindNotaResult> {
+    const nota = await this.findNotaService.execute(numeroNota);
+    return nota;
   }
 }
