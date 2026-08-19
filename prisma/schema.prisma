@@ -1,27 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-}
-
-model Aliquota {
-  id         String    @id @default(uuid())
-  uf         String
-  ncm        String
-  aliquota   Decimal   @db.Decimal(5, 4)
-  dataInicio DateTime
-  dataFim    DateTime?
-
-  @@index([uf, ncm])
-  @@map("aliquotas")
 }
 
 enum ItemStatus {
@@ -29,9 +12,33 @@ enum ItemStatus {
   PENDENTE_ALIQUOTA
 }
 
+model Aliquota {
+  id         String    @id @default(uuid())
+  uf         String    @db.VarChar(2)
+  ncm        String    @db.VarChar(8)
+  aliquota   Decimal   @db.Decimal(5, 4)
+  dataInicio DateTime  @db.Date
+  dataFim    DateTime? @db.Date
+
+  @@index([uf, ncm])
+  @@map("aliquotas")
+}
+
+model Nota {
+  id           String     @id @default(uuid())
+  numeroNota   String     @unique
+  uf           String     @db.VarChar(2)
+  dataEmissao  DateTime   @db.Date
+  creditoTotal Decimal    @db.Decimal(15, 2)
+  payloadHash  String     @db.VarChar(64)
+  itens        NotaItem[]
+
+  @@map("notas")
+}
+
 model NotaItem {
   id            String     @id @default(uuid())
-  ncm           String
+  ncm           String     @db.VarChar(8)
   quantidade    Decimal    @db.Decimal(15, 4)
   valorUnitario Decimal    @db.Decimal(15, 2)
   aliquota      Decimal?   @db.Decimal(5, 4)
@@ -43,16 +50,4 @@ model NotaItem {
 
   @@index([notaId])
   @@map("nota_itens")
-}
-
-model Nota {
-  id           String     @id @default(uuid())
-  numeroNota   String     @unique
-  uf           String
-  dataEmissao  DateTime
-  creditoTotal Decimal    @db.Decimal(15, 2)
-  payloadHash  String
-  itens        NotaItem[]
-
-  @@map("notas")
 }
