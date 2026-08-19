@@ -52,3 +52,17 @@ model NotaItem {
   @@index([notaId])
   @@map("nota_itens")
 }
+
+enum UserRole {
+  OPERADOR
+  AUDITOR
+}
+
+model User {
+  id           String   @id @default(uuid())
+  usuario      String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole
+
+  @@map("users")
+}

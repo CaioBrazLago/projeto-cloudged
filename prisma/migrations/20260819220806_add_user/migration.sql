@@ -1,0 +1,19 @@
+INSERT INTO "users" (
+    "id",
+    "usuario",
+    "password_hash",
+    "role"
+)
+VALUES
+(
+    '11111111-1111-4111-8111-111111111111',
+    'ana',
+    'HASH_BCRYPT_AQUI',
+    'OPERADOR'
+),
+(
+    '22222222-2222-4222-8222-222222222222',
+    'carlos',
+    'HASH_BCRYPT_AQUI',
+    'AUDITOR'
+);

@@ -39,6 +39,21 @@ CREATE TABLE "nota_itens" (
     CONSTRAINT "nota_itens_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TYPE "UserRole" AS ENUM ('OPERADOR', 'AUDITOR');
+
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "usuario" VARCHAR(100) NOT NULL,
+    "password_hash" VARCHAR(255) NOT NULL,
+    "role" "UserRole" NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "users_usuario_key"
+ON "users"("usuario");
+
+
 -- CreateIndex
 CREATE INDEX "aliquotas_uf_ncm_idx" ON "aliquotas"("uf", "ncm");
 
