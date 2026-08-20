@@ -6,9 +6,14 @@ import {
   Param,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
 
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { AuthGuard } from '../../auth/guards/auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { UserRole } from '../../user/enums/user-role.enum';
 import { CreateNotaDto } from '../dto/request/create-nota.dto';
 import { NotaItemResponseDto } from '../dto/response/nota-item-response.dto';
 import { NotaResponseDto } from '../dto/response/nota-response.dto';
@@ -31,6 +36,8 @@ export class NotasController {
   ) {}
 
   @Post()
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.OPERADOR)
   async create(
     @Body() dto: CreateNotaDto,
     @Res({ passthrough: true }) response: Response,
@@ -70,12 +77,16 @@ export class NotasController {
   }
 
   @Get()
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.AUDITOR)
   async findAll(): Promise<FindAllNotasResult[]> {
     const notas = await this.findAllNotasService.execute();
     return notas;
   }
 
   @Get(':numeroNota')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.AUDITOR)
   async findByNumeroNota(
     @Param('numeroNota') numeroNota: string,
   ): Promise<FindNotaResult> {
