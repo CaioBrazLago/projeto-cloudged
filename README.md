@@ -20,7 +20,7 @@
 
 ### Pré-requisitos
 
-- Node.js 18+
+- Node.js 20.19+ (recomendado Node.js 22 LTS)
 - Docker
 - Docker Compose
 
