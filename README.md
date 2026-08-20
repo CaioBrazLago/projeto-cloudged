@@ -382,7 +382,7 @@ Foi utilizado para evitar problemas de precisão de ponto flutuante nos cálculo
 
 O `AuthGuard` valida o token JWT e o `RolesGuard` controla as permissões.
 
-O `operador` pode criar e consultar notas, enquanto o `auditor` possui exclusivamente permissão de consulta.
+O `operador` pode criar e calcular notas, enquanto o `auditor` possui exclusivamente permissão de consulta.
 
 ### Idempotência
 
