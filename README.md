@@ -122,7 +122,7 @@ Credenciais para teste:
 
 ```json
 {
-  "user": "carlos",
+  "usuario": "carlos",
   "senha": "auditor123"
 }
 ```
