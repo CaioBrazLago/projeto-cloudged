@@ -1,5 +1,316 @@
 # CloudGed — API de Créditos ICMS-ST
 
+## Visão geral do desafio
+
+A CloudGed realiza a apuração de créditos de ICMS-ST a partir de notas fiscais. O objetivo deste projeto foi transformar um processo de cálculo manual em uma API capaz de **receber os itens de uma nota já estruturados, identificar a alíquota correta, calcular o crédito, persistir o resultado e permitir sua consulta posterior**.
+
+### A dor
+
+O cálculo não depende apenas de uma alíquota fixa. Para cada item é necessário considerar:
+
+- a **UF** da nota;
+- a **data de emissão**;
+- a **vigência** da regra;
+- o **NCM** do item;
+- a regra de NCM **mais específica** disponível.
+
+Além disso, a API precisa continuar processando a nota quando um item não possui alíquota compatível e deve evitar duplicidades quando a mesma nota é enviada novamente ou quando duas requisições chegam ao mesmo tempo.
+
+### A solução
+
+A solução foi dividida em responsabilidades bem definidas:
+
+| Responsabilidade      | Solução adotada                              |
+| --------------------- | -------------------------------------------- |
+| Entrada e validação   | DTOs + `ValidationPipe`                      |
+| Resolução da alíquota | `AliquotaResolverService`                    |
+| Cálculo monetário     | Entidades + `Decimal.js`                     |
+| Persistência          | Repository Pattern + Prisma + PostgreSQL     |
+| Idempotência          | `numeroNota` único + hash SHA-256 do payload |
+| Concorrência          | Constraint `UNIQUE` no PostgreSQL            |
+| Autenticação          | JWT + `bcrypt`                               |
+| Autorização           | `AuthGuard` + `RolesGuard`                   |
+| Testes                | Jest + Supertest                             |
+
+### Exemplo do problema
+
+Uma requisição pode conter itens que encontram uma regra de alíquota e outros que não encontram:
+
+```json
+{
+  "numeroNota": "12345",
+  "uf": "SP",
+  "dataEmissao": "2024-06-01",
+  "itens": [
+    {
+      "ncm": "1006.30.00",
+      "quantidade": 10,
+      "valorUnitario": 50
+    },
+    {
+      "ncm": "9999.99.99",
+      "quantidade": 5,
+      "valorUnitario": 20
+    }
+  ]
+}
+```
+
+A aplicação calcula normalmente os itens que possuem alíquota e mantém os demais como pendentes:
+
+```json
+{
+  "numeroNota": "12345",
+  "creditoTotal": 20,
+  "itens": [
+    {
+      "ncm": "1006.30.00",
+      "aliquota": 0.04,
+      "credito": 20
+    },
+    {
+      "ncm": "9999.99.99",
+      "status": "PENDENTE_ALIQUOTA"
+    }
+  ]
+}
+```
+
+Dessa forma, a ausência de uma alíquota em um item não impede o processamento dos demais.
+
+---
+
+## Arquitetura
+
+O projeto utiliza a estrutura modular do NestJS, separando as regras de negócio da infraestrutura de persistência e dos detalhes de autenticação.
+
+```text
+src/
+├── database/
+│   ├── prisma.module.ts
+│   └── prisma.service.ts
+│
+├── generated/
+│   └── prisma/
+│
+├── modules/
+│   ├── aliquotas/
+│   │   ├── entities/
+│   │   ├── repositories/
+│   │   │   └── prisma/
+│   │   ├── services/
+│   │   └── aliquotas.module.ts
+│   │
+│   ├── auth/
+│   │   ├── controllers/
+│   │   ├── decorators/
+│   │   ├── dto/
+│   │   ├── guards/
+│   │   ├── services/
+│   │   └── auth.module.ts
+│   │
+│   ├── notas/
+│   │   ├── controllers/
+│   │   ├── dto/
+│   │   │   ├── request/
+│   │   │   └── response/
+│   │   ├── entities/
+│   │   ├── enums/
+│   │   ├── repositories/
+│   │   │   └── prisma/
+│   │   ├── services/
+│   │   └── notas.module.ts
+│   │
+│   └── user/
+│       ├── entities/
+│       ├── enums/
+│       ├── repositories/
+│       │   └── prisma/
+│       └── user.module.ts
+│
+├── shared/
+│   └── errors/
+│
+├── app.module.ts
+└── main.ts
+
+prisma/
+├── migrations/
+└── schema.prisma
+
+test/
+├── notas.e2e-spec.ts
+└── notas-concurrency.e2e-spec.ts
+```
+
+### Responsabilidade de cada área
+
+#### `src/modules/notas`
+
+É o núcleo do fluxo de processamento das notas.
+
+O `NotasController` recebe as requisições HTTP e delega a execução aos services.
+
+O `NotasService` coordena a criação da nota:
+
+1. gera o hash do payload;
+2. verifica se o `numeroNota` já existe;
+3. resolve as alíquotas dos itens;
+4. calcula os créditos;
+5. calcula o crédito total;
+6. persiste a nota e seus itens;
+7. trata possíveis colisões causadas por requisições concorrentes.
+
+Os casos de consulta ficam separados em `FindAllNotasService` e `FindNotaService`.
+
+#### `src/modules/aliquotas`
+
+Concentra a regra de resolução das alíquotas.
+
+O `AliquotaResolverService` recebe:
+
+```json
+{
+  "uf": "SP",
+  "ncm": "1006.30.00",
+  "dataEmissao": "2024-06-01"
+}
+```
+
+e procura uma regra que esteja vigente e cujo prefixo seja compatível com o NCM informado.
+
+Quando existem várias regras compatíveis, a de maior especificidade é utilizada.
+
+Exemplo:
+
+```text
+SP / 10         → compatível
+SP / 1006.30.00 → compatível e mais específica
+```
+
+Resultado:
+
+```json
+{
+  "ncm": "1006.30.00",
+  "aliquota": 0.04
+}
+```
+
+#### `src/modules/auth`
+
+Responsável pelo login e proteção das rotas.
+
+O `AuthService` consulta o usuário, valida a senha com `bcrypt` e gera o token JWT.
+
+```json
+{
+  "usuario": "ana",
+  "senha": "operador123"
+}
+```
+
+Resposta:
+
+```json
+{
+  "role": "operador",
+  "access": "<jwt>"
+}
+```
+
+O `AuthGuard` valida o Bearer Token e o `RolesGuard` verifica se a role possui acesso ao endpoint solicitado.
+
+#### `src/modules/user`
+
+Contém a entidade `User`, o enum `UserRole` e a abstração de acesso aos usuários.
+
+A implementação `PrismaUserRepository` mantém o acesso ao banco separado do serviço de autenticação.
+
+#### `src/database`
+
+Centraliza a configuração de acesso ao PostgreSQL através do Prisma.
+
+O `PrismaService` disponibiliza o client utilizado pelas implementações concretas dos repositories.
+
+#### `src/generated`
+
+Contém o Prisma Client gerado a partir do `schema.prisma`.
+
+Essa pasta é gerada automaticamente e não contém regras de negócio.
+
+#### `src/shared/errors`
+
+Mantém os erros compartilhados pela aplicação, como `AppError` e `ErrorCode`, evitando duplicação dessas definições entre os módulos.
+
+#### `prisma`
+
+Contém:
+
+- definição dos models;
+- relacionamentos;
+- índices;
+- constraints;
+- migrations;
+- dados de referência utilizados pelo desafio.
+
+#### `test`
+
+Contém os testes E2E, incluindo os cenários de integração e concorrência.
+
+Os testes unitários ficam próximos às regras testadas dentro de `src`, como os testes da resolução de alíquota e do cálculo de crédito.
+
+---
+
+## Fluxo principal
+
+```mermaid
+flowchart TD
+    A["POST /notas"] --> B["Validação do DTO"]
+    B --> C["Gerar hash SHA-256"]
+    C --> D{"numeroNota já existe?"}
+
+    D -- "Sim" --> E{"Payload é o mesmo?"}
+    E -- "Sim" --> F["Retornar nota existente - 200"]
+    E -- "Não" --> G["Conflict - 409"]
+
+    D -- "Não" --> H["Processar itens"]
+    H --> I["Resolver alíquota por UF, vigência e NCM"]
+    I --> J{"Alíquota encontrada?"}
+
+    J -- "Sim" --> K["Calcular crédito com Decimal.js"]
+    J -- "Não" --> L["PENDENTE_ALIQUOTA"]
+
+    K --> M["Calcular crédito total"]
+    L --> M
+    M --> N["Repository"]
+    N --> O["Prisma"]
+    O --> P["PostgreSQL"]
+    P --> Q["Retornar nota criada - 201"]
+```
+
+### Separação das camadas
+
+O fluxo entre as principais responsabilidades segue:
+
+```text
+Controller
+    ↓
+Service
+    ↓
+Repository
+    ↓
+Prisma
+    ↓
+PostgreSQL
+```
+
+Os controllers ficam responsáveis pelo protocolo HTTP, enquanto os services coordenam os casos de uso. Os repositories funcionam como abstrações de persistência e suas implementações Prisma concentram os detalhes de acesso ao banco.
+
+Essa separação evita que as regras da aplicação dependam diretamente do ORM e facilita a criação de testes isolados.
+
+---
+
 ## Tecnologias
 
 - Node.js
