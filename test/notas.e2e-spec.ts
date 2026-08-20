@@ -7,9 +7,15 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
 
+interface LoginResponse {
+  role: string;
+  access: string;
+}
+
 describe('POST /notas', () => {
   let app!: INestApplication;
   let prisma!: PrismaService;
+  let accessToken: string;
 
   const numeroNota = 'TEST-POST-NOTA';
 
@@ -19,9 +25,26 @@ describe('POST /notas', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
     prisma = moduleFixture.get(PrismaService);
 
     await app.init();
+
+    const httpServer = app.getHttpServer() as Server;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        usuario: 'ana',
+        senha: 'operador123',
+      })
+      .expect(200);
+
+    const loginBody = loginResponse.body as LoginResponse;
+
+    expect(loginBody.access).toBeDefined();
+
+    accessToken = loginBody.access;
   });
 
   beforeEach(async () => {
@@ -65,6 +88,7 @@ describe('POST /notas', () => {
 
     const response = await request(httpServer)
       .post('/notas')
+      .set('Authorization', `Bearer ${accessToken}`)
       .send(payload)
       .expect(201);
 
