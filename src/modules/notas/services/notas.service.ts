@@ -77,12 +77,11 @@ export class NotasService {
     dataRequest: CreateNotaDto,
     dataEmissao: Date,
   ): Promise<NotaItem[]> {
-    const itens: NotaItem[] = [];
-
-    for (const itemDto of dataRequest.itens) {
+    const calculosPromises = dataRequest.itens.map(async (itemDto) => {
+      const ncmNormalizado = this.normalizeNcm(itemDto.ncm);
       const item = new NotaItem(
         null,
-        this.normalizeNcm(itemDto.ncm),
+        ncmNormalizado,
         itemDto.quantidade,
         itemDto.valorUnitario,
         null,
@@ -90,20 +89,20 @@ export class NotasService {
         ItemStatus.PENDENTE_ALIQUOTA,
       );
 
-      const aliquota = await this.aliquotaResolverService.execute(
+      const aliquotaEncontrada = await this.aliquotaResolverService.execute(
         dataRequest.uf,
         itemDto.ncm,
         dataEmissao,
       );
 
-      if (aliquota) {
-        item.calcularCredito(aliquota.aliquota);
+      if (aliquotaEncontrada) {
+        item.calcularCredito(aliquotaEncontrada.aliquota);
       }
 
-      itens.push(item);
-    }
+      return item;
+    });
 
-    return itens;
+    return Promise.all(calculosPromises);
   }
 
   private resolveExistingNota(
