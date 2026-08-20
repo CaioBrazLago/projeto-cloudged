@@ -8,6 +8,18 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -27,6 +39,9 @@ import {
 import { FindNotaResult, FindNotaService } from '../services/find-nota.service';
 import { NotasService } from '../services/notas.service';
 
+@ApiTags('Notas fiscais')
+@ApiBearerAuth('access-token')
+@UseGuards(AuthGuard, RolesGuard)
 @Controller('notas')
 export class NotasController {
   constructor(
@@ -38,6 +53,26 @@ export class NotasController {
   @Post()
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.OPERADOR)
+  @ApiOperation({
+    summary: 'Criar e calcular nota fiscal',
+    description:
+      'Resolve as alíquotas dos itens, calcula os créditos e persiste a nota.',
+  })
+  @ApiCreatedResponse({
+    description: 'Nota criada e processada com sucesso',
+  })
+  @ApiBadRequestResponse({
+    description: 'Payload inválido',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Token ausente, inválido ou expirado',
+  })
+  @ApiForbiddenResponse({
+    description: 'Usuário sem permissão para criar notas',
+  })
+  @ApiConflictResponse({
+    description: 'Número da nota já utilizado com payload diferente',
+  })
   async create(
     @Body() dto: CreateNotaDto,
     @Res({ passthrough: true }) response: Response,
@@ -79,6 +114,18 @@ export class NotasController {
   @Get()
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.AUDITOR)
+  @ApiOperation({
+    summary: 'Listar notas processadas',
+  })
+  @ApiOkResponse({
+    description: 'Lista de notas processadas',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Token ausente, inválido ou expirado',
+  })
+  @ApiForbiddenResponse({
+    description: 'Usuário sem permissão',
+  })
   async findAll(): Promise<FindAllNotasResult[]> {
     const notas = await this.findAllNotasService.execute();
     return notas;
@@ -87,6 +134,21 @@ export class NotasController {
   @Get(':numeroNota')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.AUDITOR)
+  @ApiOperation({
+    summary: 'Consultar nota pelo número',
+  })
+  @ApiOkResponse({
+    description: 'Nota encontrada com seus itens',
+  })
+  @ApiNotFoundResponse({
+    description: 'Nota fiscal não encontrada',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Token ausente, inválido ou expirado',
+  })
+  @ApiForbiddenResponse({
+    description: 'Usuário sem permissão',
+  })
   async findByNumeroNota(
     @Param('numeroNota') numeroNota: string,
   ): Promise<FindNotaResult> {
