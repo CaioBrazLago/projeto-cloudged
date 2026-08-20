@@ -41,7 +41,7 @@ export class PrismaNotaRepository extends NotaRepository {
               valorUnitario: item.valorUnitario,
               aliquota: item.aliquota,
               credito: item.credito,
-              status: this.toPrismaStatus(item.status),
+              status: item.status,
             })),
           },
         },
@@ -73,6 +73,7 @@ export class PrismaNotaRepository extends NotaRepository {
       where: {
         numeroNota,
       },
+
       include: {
         itens: true,
       },
@@ -87,15 +88,23 @@ export class PrismaNotaRepository extends NotaRepository {
 
   async findAll(): Promise<Nota[]> {
     const notas = await this.prisma.nota.findMany({
-      include: {
-        itens: true,
-      },
       orderBy: {
         dataEmissao: 'desc',
       },
     });
 
-    return notas.map((nota) => this.toEntity(nota));
+    return notas.map(
+      (nota) =>
+        new Nota(
+          nota.id,
+          nota.numeroNota,
+          nota.uf,
+          nota.dataEmissao,
+          nota.creditoTotal.toNumber(),
+          nota.payloadHash,
+          [],
+        ),
+    );
   }
 
   private toEntity(nota: PrismaNotaComItens): Nota {
@@ -104,11 +113,11 @@ export class PrismaNotaRepository extends NotaRepository {
         new NotaItem(
           item.id,
           item.ncm,
-          Number(item.quantidade),
-          Number(item.valorUnitario),
-          item.aliquota !== null ? Number(item.aliquota) : null,
-          item.credito !== null ? Number(item.credito) : null,
-          this.toDomainStatus(item.status),
+          item.quantidade.toNumber(),
+          item.valorUnitario.toNumber(),
+          item.aliquota !== null ? item.aliquota.toNumber() : null,
+          item.credito !== null ? item.credito.toNumber() : null,
+          this.toEntityStatus(item.status),
         ),
     );
 
@@ -117,29 +126,17 @@ export class PrismaNotaRepository extends NotaRepository {
       nota.numeroNota,
       nota.uf,
       nota.dataEmissao,
-      Number(nota.creditoTotal),
+      nota.creditoTotal.toNumber(),
       nota.payloadHash,
       itens,
     );
   }
 
-  private toPrismaStatus(status: ItemStatus): PrismaItemStatus {
-    switch (status) {
-      case ItemStatus.CALCULADO:
-        return PrismaItemStatus.CALCULADO;
-
-      case ItemStatus.PENDENTE_ALIQUOTA:
-        return PrismaItemStatus.PENDENTE_ALIQUOTA;
+  private toEntityStatus(status: PrismaItemStatus): ItemStatus {
+    if (status === PrismaItemStatus.CALCULADO) {
+      return ItemStatus.CALCULADO;
     }
-  }
 
-  private toDomainStatus(status: PrismaItemStatus): ItemStatus {
-    switch (status) {
-      case PrismaItemStatus.CALCULADO:
-        return ItemStatus.CALCULADO;
-
-      case PrismaItemStatus.PENDENTE_ALIQUOTA:
-        return ItemStatus.PENDENTE_ALIQUOTA;
-    }
+    return ItemStatus.PENDENTE_ALIQUOTA;
   }
 }
